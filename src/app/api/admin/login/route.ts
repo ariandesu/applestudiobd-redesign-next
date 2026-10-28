@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { signAdminToken, verifyPassword, COOKIE_NAME, initAdminTables, verifyTotpToken } from '@/lib/auth';
+import { signAdminToken, verifyPassword, COOKIE_NAME, initAdminTables } from '@/lib/auth';
 import { getDbClient } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { username = 'admin', password, totpCode } = body;
+    const { username = 'admin', password } = body;
 
     if (!password) {
       return NextResponse.json({ error: 'Password is required' }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return response;
     }
 
-    // Moderator login with 2FA
+    // Moderator login (direct password verification without 2FA)
     const db = getDbClient();
     const modResult = await db.execute({
       sql: 'SELECT * FROM moderators WHERE username = ?',
@@ -57,15 +57,6 @@ export async function POST(request: Request) {
     const mod = modResult.rows[0];
     if (mod.passwordHash !== password) {
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
-    }
-
-    if (!totpCode) {
-      return NextResponse.json({ requires2FA: true }, { status: 200 });
-    }
-
-    const isValidTotp = verifyTotpToken(String(mod.totpSecret), totpCode);
-    if (!isValidTotp) {
-      return NextResponse.json({ error: 'Invalid Google Authenticator 2FA code' }, { status: 401 });
     }
 
     const token = await signAdminToken({

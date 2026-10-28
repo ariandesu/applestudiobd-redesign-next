@@ -2,14 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, ArrowRight, ShieldCheck, Eye, EyeOff, QrCode } from 'lucide-react';
+import { Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [totpCode, setTotpCode] = useState('');
-  const [requires2FA, setRequires2FA] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,18 +29,12 @@ export default function AdminLoginPage() {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, totpCode }),
+        body: JSON.stringify({ username, password }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to login');
-      }
-
-      if (data.requires2FA) {
-        setRequires2FA(true);
-        setLoading(false);
-        return;
       }
 
       router.push('/admin');
@@ -75,7 +67,7 @@ export default function AdminLoginPage() {
         <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
           <div className="flex items-center gap-2 pb-2 border-b border-white/10 text-xs font-semibold text-stone-300">
             <Lock className="w-4 h-4 text-indigo-400" />
-            <span>{requires2FA ? 'Google Authenticator 2FA Verification' : 'Secure Sign In'}</span>
+            <span>Secure Sign In</span>
           </div>
 
           {error && (
@@ -85,86 +77,56 @@ export default function AdminLoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!requires2FA ? (
-              <>
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1.5">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="admin or moderator username"
-                    required
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
-                  />
-                </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1.5">
+                Username
+              </label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin or moderator username"
+                required
+                className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
+              />
+            </div>
 
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter password"
-                      required
-                      className="w-full pl-4 pr-11 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs space-y-1 text-center">
-                  <QrCode className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                  <p className="font-semibold">Enter 6-digit Google Authenticator Code</p>
-                  <p className="text-[11px] text-stone-400">Open Google Authenticator on your phone to view the code for {username}</p>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1.5 text-center">
-                  Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value)}
-                    placeholder="123456"
-                    required
-                    autoFocus
-                    className="w-full px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-center font-mono text-xl tracking-widest focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
-                  />
-                </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
+                  className="w-full pl-4 pr-11 py-2.5 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-200"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+            </div>
 
             <button
               type="submit"
               disabled={loading}
               className="w-full mt-2 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold tracking-wide transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 group cursor-pointer"
             >
-              <span>{loading ? 'Verifying...' : requires2FA ? 'Confirm 2FA Code' : 'Sign In to Portal'}</span>
+              <span>{loading ? 'Signing in...' : 'Sign In to Portal'}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </form>
 
-          {!requires2FA && (
-            <div className="pt-2 text-center border-t border-white/5 text-[11px] text-stone-400">
-              <p>Master Admin: <span className="font-mono text-stone-300">admin</span> / <span className="font-mono text-stone-300">applestudio2026!</span></p>
-            </div>
-          )}
+          <div className="pt-2 text-center border-t border-white/5 text-[11px] text-stone-400">
+            <p>Master Admin: <span className="font-mono text-stone-300">admin</span> / <span className="font-mono text-stone-300">applestudio2026!</span></p>
+          </div>
         </div>
 
         <div className="text-center">

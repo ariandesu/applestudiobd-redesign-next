@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import QRCode from 'qrcode';
 import {
   Package,
   Plus,
@@ -17,11 +16,8 @@ import {
   ExternalLink,
   ShieldCheck,
   UserPlus,
-  KeyRound,
   FolderPlus,
-  CheckCircle2,
-  AlertTriangle,
-  QrCode
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Product } from '@/lib/constants';
@@ -64,8 +60,6 @@ export default function AdminDashboardPage() {
   const [isModModalOpen, setIsModModalOpen] = useState(false);
   const [modUsername, setModUsername] = useState('');
   const [modPassword, setModPassword] = useState('');
-  const [createdModData, setCreatedModData] = useState<{ username: string; secret: string; uri: string } | null>(null);
-  const [modQrCodeUrl, setModQrCodeUrl] = useState('');
 
   // Uploading state
   const [uploading, setUploading] = useState(false);
@@ -312,19 +306,10 @@ export default function AdminDashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create moderator');
 
-      setCreatedModData({
-        username: modUsername.trim(),
-        secret: data.totpSecret,
-        uri: data.totpUri,
-      });
-
-      // Generate QR Code image url
-      const qrUrl = await QRCode.toDataURL(data.totpUri);
-      setModQrCodeUrl(qrUrl);
-
-      showNotify('success', 'Moderator account created successfully! Set up 2FA.');
+      showNotify('success', `Moderator "${modUsername.trim()}" created successfully!`);
       setModUsername('');
       setModPassword('');
+      setIsModModalOpen(false);
       fetchModerators();
     } catch (err: unknown) {
       if (err instanceof Error) showNotify('error', err.message);
@@ -418,7 +403,7 @@ export default function AdminDashboardPage() {
           <div>
             <h1 className="text-2xl font-serif font-medium text-white">Admin Command Center</h1>
             <p className="text-xs text-stone-400 font-light mt-1">
-              Manage inventory, create categories, and secure moderator access with Google Authenticator 2FA.
+              Manage inventory, create categories, and add moderator accounts for team collaboration.
             </p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -624,7 +609,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-serif text-lg font-medium text-white">Active Moderator Accounts</h2>
-                  <p className="text-xs text-stone-400">Moderators log in using their credentials and mandatory Google Authenticator 2FA.</p>
+                  <p className="text-xs text-stone-400">Moderators log in using their username and password.</p>
                 </div>
                 <button
                   onClick={() => setIsModModalOpen(true)}
@@ -912,96 +897,59 @@ export default function AdminDashboardPage() {
       {/* Create Moderator Modal */}
       {isModModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
-          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-md p-6 sm:p-8 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-stone-800">
-              <h3 className="font-serif text-lg font-medium text-white">Create Moderator Account & Setup 2FA</h3>
-              <button onClick={() => { setIsModModalOpen(false); setCreatedModData(null); }} className="text-stone-400 hover:text-white">
+              <h3 className="font-serif text-lg font-medium text-white">Create Moderator Account</h3>
+              <button onClick={() => setIsModModalOpen(false)} className="text-stone-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {createdModData ? (
-              <div className="space-y-6 text-center">
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs space-y-1">
-                  <p className="font-semibold">Moderator account created successfully!</p>
-                  <p className="text-[11px] text-emerald-400">Scan this QR code in Google Authenticator (or Authy / 1Password)</p>
-                </div>
+            <form onSubmit={handleCreateModerator} className="space-y-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
+                  Moderator Username *
+                </label>
+                <input
+                  type="text"
+                  value={modUsername}
+                  onChange={(e) => setModUsername(e.target.value)}
+                  placeholder="e.g. mahir_mod"
+                  required
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
 
-                {modQrCodeUrl && (
-                  <div className="bg-white p-4 rounded-2xl inline-block shadow-lg mx-auto">
-                    <img src={modQrCodeUrl} alt="2FA QR Code" className="w-48 h-48 mx-auto" />
-                  </div>
-                )}
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  value={modPassword}
+                  onChange={(e) => setModPassword(e.target.value)}
+                  placeholder="Secure password"
+                  required
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
 
-                <div className="space-y-1 text-left bg-white/5 p-4 rounded-2xl border border-white/10 font-mono text-xs">
-                  <p className="text-stone-400 text-[10px] uppercase">Manual Entry Key:</p>
-                  <p className="text-indigo-300 select-all break-all">{createdModData.secret}</p>
-                </div>
-
+              <div className="flex items-center justify-end gap-3 pt-2">
                 <button
-                  onClick={() => { setIsModModalOpen(false); setCreatedModData(null); }}
-                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  type="button"
+                  onClick={() => setIsModModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-stone-300 text-xs"
                 >
-                  Done • Return to Dashboard
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                >
+                  Create Moderator
                 </button>
               </div>
-            ) : (
-              <form onSubmit={handleCreateModerator} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
-                    Moderator Username *
-                  </label>
-                  <input
-                    type="text"
-                    value={modUsername}
-                    onChange={(e) => setModUsername(e.target.value)}
-                    placeholder="e.g. mahir_mod"
-                    required
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
-                    Temporary Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={modPassword}
-                    onChange={(e) => setModPassword(e.target.value)}
-                    placeholder="Secure password"
-                    required
-                    className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs space-y-1">
-                  <p className="font-semibold flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                    Mandatory Google Authenticator 2FA
-                  </p>
-                  <p className="text-[11px] text-stone-400">
-                    Upon creation, a QR code will be generated for the moderator to scan into Google Authenticator. Every subsequent login requires a 6-digit TOTP code.
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsModModalOpen(false)}
-                    className="px-4 py-2 rounded-xl bg-white/5 text-stone-300 text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
-                  >
-                    Generate Account & 2FA QR
-                  </button>
-                </div>
-              </form>
-            )}
+            </form>
           </div>
         </div>
       )}

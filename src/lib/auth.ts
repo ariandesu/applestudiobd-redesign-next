@@ -1,7 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { getDbClient, initDb } from './db';
-import * as OTPAuth from 'otpauth';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.ADMIN_JWT_SECRET || 'apple-studio-bd-secure-admin-jwt-key-32-chars-min-2026'
@@ -62,13 +61,12 @@ export async function initAdminTables(): Promise<void> {
     )
   `);
 
-  // Table for moderator accounts
+  // Table for moderator accounts (simplified without TOTP)
   await db.execute(`
     CREATE TABLE IF NOT EXISTS moderators (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       passwordHash TEXT NOT NULL,
-      totpSecret TEXT NOT NULL,
       createdAt TEXT NOT NULL
     )
   `);
@@ -91,38 +89,5 @@ export async function initAdminTables(): Promise<void> {
         args: [c.id, c.label, now],
       });
     }
-  }
-}
-
-export function generateTotpSecret(): { secret: string; uri: string } {
-  const secret = new OTPAuth.Secret({ size: 20 });
-  const totp = new OTPAuth.TOTP({
-    issuer: 'AppleStudioBD',
-    label: 'AdminPortal',
-    algorithm: 'SHA1',
-    digits: 6,
-    period: 30,
-    secret: secret,
-  });
-  return {
-    secret: secret.base32,
-    uri: totp.toString(),
-  };
-}
-
-export function verifyTotpToken(secret: string, token: string): boolean {
-  try {
-    const totp = new OTPAuth.TOTP({
-      issuer: 'AppleStudioBD',
-      label: 'AdminPortal',
-      algorithm: 'SHA1',
-      digits: 6,
-      period: 30,
-      secret: OTPAuth.Secret.fromBase32(secret),
-    });
-    const delta = totp.validate({ token, window: 1 });
-    return delta !== null;
-  } catch {
-    return false;
   }
 }
