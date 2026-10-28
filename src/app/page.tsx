@@ -350,45 +350,51 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
-            {/* Desktop View: Fluid horizontal pills + search */}
-            <div className="hidden sm:flex sm:flex-col gap-4">
-              <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
-                {categories.map(cat => (
-                  <button 
-                    key={cat.id} 
-                    onClick={() => setCurrentCategory(cat.id)}
-                    className={cn(
-                      "px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap border",
-                      currentCategory === cat.id ? "bg-charcoal text-white border-charcoal shadow-lg" : "bg-white text-slate-600 border-slate-200 hover:border-indigo-premium"
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
+            {/* Desktop View: Studio Control Bar */}
+            <div className="hidden sm:block space-y-3">
+              {/* Top Row: Categories Segmented Control + Search */}
               <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                  {budgets.map(b => (
-                    <button 
-                      key={b.id} 
-                      onClick={() => setCurrentBudget(b.id)}
-                      className={cn(
-                        "px-3 py-1 rounded-full text-[11px] font-medium transition-all whitespace-nowrap border",
-                        currentBudget === b.id ? "bg-indigo-premium text-white border-indigo-premium" : "bg-white text-slate-500 border-slate-200 hover:border-indigo-premium"
-                      )}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
+                {/* Segmented Category Tabs */}
+                <div className="inline-flex items-center p-1 rounded-full bg-stone-200/50 border border-stone-200/80 backdrop-blur-sm shadow-inner overflow-x-auto scrollbar-none max-w-full shrink-0">
+                  {categories.map((cat) => {
+                    const count = cat.id === 'all' 
+                      ? SiteData.products.length 
+                      : SiteData.products.filter(p => p.category === cat.id).length;
+                    const isActive = currentCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => setCurrentCategory(cat.id)}
+                        className={cn(
+                          "relative px-3.5 lg:px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap shrink-0 select-none",
+                          isActive
+                            ? "bg-charcoal text-white shadow-sm font-semibold"
+                            : "text-slate-600 hover:text-charcoal hover:bg-white/60"
+                        )}
+                      >
+                        <span className="whitespace-nowrap">{cat.label}</span>
+                        <span
+                          className={cn(
+                            "text-[10px] px-1.5 py-0.2 rounded-full font-mono",
+                            isActive ? "bg-white/20 text-white" : "bg-stone-300/60 text-slate-500"
+                          )}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="relative flex-1 max-w-[220px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input 
-                    type="text" 
-                    value={searchQuery} 
+
+                {/* Search Input */}
+                <div className="relative min-w-[200px] w-64 lg:w-72 shrink-0">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search devices..." 
-                    className="w-full pl-9 pr-4 py-1.5 rounded-full border border-slate-200 bg-white text-xs focus:outline-none focus:ring-1 focus:ring-indigo-premium transition" 
+                    placeholder="Search 56 verified devices..."
+                    className="w-full pl-9 pr-8 py-2 rounded-full border border-stone-200/90 bg-white/90 text-xs text-charcoal placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-premium focus:border-indigo-premium transition shadow-xs"
                   />
                   {searchQuery && (
                     <button
@@ -398,6 +404,66 @@ export default function Home() {
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* Bottom Row: Budget Filters + Sort Dropdown + Device Counter */}
+              <div className="flex items-center justify-between gap-4 pt-1.5 border-t border-stone-200/50">
+                {/* Left: Budget Bracket Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Budget
+                  </span>
+                  <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-stone-200/40 border border-stone-200/60 overflow-x-auto scrollbar-none">
+                    {budgets.map((b) => {
+                      const isActive = currentBudget === b.id;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => setCurrentBudget(b.id)}
+                          className={cn(
+                            "px-3 py-1 rounded-full text-[11px] transition-all duration-200 font-medium whitespace-nowrap",
+                            isActive
+                              ? "bg-charcoal text-white shadow-xs font-semibold"
+                              : "text-slate-600 hover:text-charcoal hover:bg-white/60"
+                          )}
+                        >
+                          {b.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Clear/Reset button if filters active */}
+                  {hasActiveFilters && (
+                    <button
+                      onClick={() => { setCurrentCategory('all'); setCurrentBudget('all'); setSearchQuery(''); }}
+                      className="inline-flex items-center gap-1 ml-2 text-[11px] text-slate-500 hover:text-indigo-premium font-medium transition"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Right: Sort Dropdown & Results Counter */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 font-light hidden lg:inline">
+                    Showing <span className="font-medium text-charcoal">{filteredProducts.length}</span> devices
+                  </span>
+
+                  <div className="relative">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="appearance-none bg-white/90 border border-stone-200/90 rounded-full pl-3.5 pr-8 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-premium cursor-pointer transition shadow-xs"
+                    >
+                      <option value="featured">Sort: Featured</option>
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="price_desc">Price: High to Low</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  </div>
                 </div>
               </div>
             </div>
