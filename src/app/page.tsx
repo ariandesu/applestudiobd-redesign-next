@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Phone, 
@@ -54,6 +55,7 @@ export default function Home() {
     { id: 'under_30k', label: '< ৳30K' },
     { id: '30_50k', label: '৳30-50K' },
     { id: '50_90k', label: '৳50-90K' },
+    { id: '90_130k', label: '৳90-130K' },
     { id: 'above_130k', label: '> ৳130K' },
   ];
 
@@ -82,7 +84,7 @@ export default function Home() {
               <span className="font-serif text-lg font-semibold tracking-tight">Apple Studio <span className="italic text-indigo-premium">BD</span></span>
             </div>
             <div className="flex items-center gap-4">
-              <a href="tel:01748405669" className="hidden sm:flex items-center gap-2 text-sm font-medium hover:text-indigo-premium transition">
+              <a href="tel:+8801748405669" className="hidden sm:flex items-center gap-2 text-sm font-medium hover:text-indigo-premium transition">
                 <Phone className="w-4 h-4" /> Call
               </a>
               <a href="https://wa.me/8801748405669" className="bg-indigo-premium text-white px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition active:scale-95 flex items-center gap-2">
@@ -141,7 +143,7 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {budgets.map(b => (
                   <button 
@@ -156,7 +158,7 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              <div className="relative flex-1 max-w-[200px]">
+              <div className="relative w-full sm:flex-1 sm:max-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input 
                   type="text" 
@@ -199,7 +201,7 @@ export default function Home() {
                 <a href="https://wa.me/8801748405669" className="bg-indigo-premium text-white px-6 py-3 rounded-full text-sm font-semibold flex items-center gap-2 hover:opacity-90 transition">
                   <MessageCircle className="w-4 h-4" /> Request Visit
                 </a>
-                <a href="tel:01748405669" className="px-6 py-3 rounded-full border border-slate-700 text-sm font-semibold hover:bg-slate-800 transition">
+                <a href="tel:+8801748405669" className="px-6 py-3 rounded-full border border-slate-700 text-sm font-semibold hover:bg-slate-800 transition">
                   Call Store
                 </a>
               </div>
@@ -216,9 +218,15 @@ export default function Home() {
               <div className="space-y-4">
                 <p className="font-serif text-lg">Socials</p>
                 <ul className="space-y-2 text-slate-400 font-light">
-                  <li>Facebook</li>
-                  <li>Instagram</li>
-                  <li>TikTok</li>
+                  <li>
+                    <a href={SiteData.storeInfo.socials.facebook} target="_blank" rel="noopener noreferrer" className="hover:text-cream transition">Facebook</a>
+                  </li>
+                  <li>
+                    <a href={SiteData.storeInfo.socials.instagram} target="_blank" rel="noopener noreferrer" className="hover:text-cream transition">Instagram</a>
+                  </li>
+                  <li>
+                    <a href={SiteData.storeInfo.socials.tiktok} target="_blank" rel="noopener noreferrer" className="hover:text-cream transition">TikTok</a>
+                  </li>
                 </ul>
               </div>
             </div>
@@ -240,10 +248,12 @@ function ProductCard({ product }: { product: Product }) {
       className="group bg-white border border-slate-100 rounded-[32px] p-6 transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-2"
     >
       <div className="aspect-square rounded-2xl bg-slate-50 overflow-hidden mb-6 relative">
-        <img 
+        <Image 
           src={product.imageUrl} 
           alt={product.name} 
-          className="w-full h-full object-contain p-6 group-hover:scale-105 transition-transform duration-700"
+          fill
+          sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 30vw"
+          className="object-contain p-6 group-hover:scale-105 transition-transform duration-700"
           onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80'; }}
         />
         <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-white/80 backdrop-blur text-[10px] font-bold text-indigo-premium border border-indigo-100">

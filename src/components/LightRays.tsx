@@ -35,11 +35,18 @@ export default function LightRays({
     const container = containerRef.current;
     if (!container) return;
 
-    const renderer = new Renderer({
-      dpr: Math.min(window.devicePixelRatio, 1.5),
-      alpha: true,
-      premultipliedAlpha: true,
-    });
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        dpr: Math.min(window.devicePixelRatio, 1.5),
+        alpha: true,
+        premultipliedAlpha: true,
+      });
+    } catch {
+      // WebGL unavailable (older devices, disabled GPU, etc.) — fail silently
+      // instead of taking down the whole page.
+      return;
+    }
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
 
@@ -62,6 +69,7 @@ export default function LightRays({
       uniform float uRayLength;
       uniform vec3 uRayColor;
       uniform vec2 uOrigin;
+      uniform float uPulsating;
       
       #define PI 3.14159265359
       
@@ -85,7 +93,7 @@ export default function LightRays({
           float diff = abs(angle - a);
           diff = min(diff, PI * 2.0 - diff);
           
-          float intensity = smoothstep(uSpread, 0.0, diff);
+          float intensity = 1.0 - smoothstep(0.0, uSpread, diff);
           intensity *= 1.0 / (1.0 + dist * (3.0 / uRayLength));
           intensity *= smoothstep(0.0, 0.3, dist);
           
@@ -102,7 +110,7 @@ export default function LightRays({
         float time = uTime * uSpeed;
         float beam = rays(uv, origin, time);
         
-        float pulse = pulsating ? (0.7 + 0.3 * sin(time * 0.5)) : 1.0;
+        float pulse = mix(1.0, 0.7 + 0.3 * sin(time * 0.5), uPulsating);
         beam *= pulse;
         
         float fadeTop = smoothstep(0.0, 0.4, uv.y);
@@ -115,24 +123,32 @@ export default function LightRays({
       }
     `;
 
-    const geometry = new Mesh(gl, {
-      geometry: new Triangle(gl),
-      program: new Program(gl, {
-        vertex: vertexShader,
-        fragment: fragmentShader,
-        uniforms: {
-          uTime: { value: 0 },
-          uMouse: { value: [0.5, 0.5] },
-          uSpeed: { value: raysSpeed },
-          uSpread: { value: lightSpread },
-          uRayLength: { value: rayLength },
-          uRayColor: { value: hexToVec3(raysColor) },
-          uOrigin: { value: getOrigin(raysOrigin) },
-        },
-        transparent: true,
-        depthTest: false,
-      }),
-    });
+    let geometry: Mesh;
+    try {
+      geometry = new Mesh(gl, {
+        geometry: new Triangle(gl),
+        program: new Program(gl, {
+          vertex: vertexShader,
+          fragment: fragmentShader,
+          uniforms: {
+            uTime: { value: 0 },
+            uMouse: { value: [0.5, 0.5] },
+            uSpeed: { value: raysSpeed },
+            uSpread: { value: lightSpread },
+            uRayLength: { value: rayLength },
+            uRayColor: { value: hexToVec3(raysColor) },
+            uOrigin: { value: getOrigin(raysOrigin) },
+            uPulsating: { value: pulsating ? 1 : 0 },
+          },
+          transparent: true,
+          depthTest: false,
+        }),
+      });
+    } catch {
+      // Shader/WebGL failure should never crash the app.
+      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      return;
+    }
 
     const resize = () => {
       renderer.setSize(container.offsetWidth, container.offsetHeight);
