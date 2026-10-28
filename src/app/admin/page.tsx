@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import QRCode from 'qrcode';
 import {
   Package,
   Plus,
@@ -14,29 +15,63 @@ import {
   Upload,
   Image as ImageIcon,
   ExternalLink,
-  AlertTriangle
+  ShieldCheck,
+  UserPlus,
+  KeyRound,
+  FolderPlus,
+  CheckCircle2,
+  AlertTriangle,
+  QrCode
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Product } from '@/lib/constants';
 
+interface CategoryItem {
+  id: string;
+  label: string;
+}
+
+interface ModeratorItem {
+  id: number;
+  username: string;
+  createdAt: string;
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [moderators, setModerators] = useState<ModeratorItem[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [authChecking, setAuthChecking] = useState(true);
   const [adminUser, setAdminUser] = useState('admin');
+  const [isAdminRole, setIsAdminRole] = useState(true);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState<'products' | 'moderators'>('products');
 
-  // Modal State for Add / Edit
+  // Modal State for Add / Edit Product
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Modal State for New Category
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState('');
+
+  // Modal State for New Moderator
+  const [isModModalOpen, setIsModModalOpen] = useState(false);
+  const [modUsername, setModUsername] = useState('');
+  const [modPassword, setModPassword] = useState('');
+  const [createdModData, setCreatedModData] = useState<{ username: string; secret: string; uri: string } | null>(null);
+  const [modQrCodeUrl, setModQrCodeUrl] = useState('');
 
   // Uploading state
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form state
+  // Form state for Product
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -52,12 +87,12 @@ export default function AdminDashboardPage() {
 
   // Delete Confirmation Modal
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingModId, setDeletingModId] = useState<number | null>(null);
 
   // Status banners
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
-    // Check auth
     fetch('/api/admin/me')
       .then(async res => {
         if (!res.ok) {
@@ -65,9 +100,14 @@ export default function AdminDashboardPage() {
           return;
         }
         const data = await res.json();
-        if (data.user?.username) setAdminUser(data.user.username);
+        if (data.user?.username) {
+          setAdminUser(data.user.username);
+          setIsAdminRole(data.user.username === 'admin');
+        }
         setAuthChecking(false);
         fetchProducts();
+        fetchCategories();
+        fetchModerators();
       })
       .catch(() => {
         router.replace('/admin/login');
@@ -87,6 +127,26 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.categories)) {
+        setCategories(data.categories);
+      }
+    } catch {}
+  };
+
+  const fetchModerators = async () => {
+    try {
+      const res = await fetch('/api/admin/moderators');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.moderators)) {
+        setModerators(data.moderators);
+      }
+    } catch {}
   };
 
   const showNotify = (type: 'success' | 'error', message: string) => {
@@ -116,7 +176,6 @@ export default function AdminDashboardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       showNotify('error', 'Image size must be less than 5MB');
       return;
@@ -149,7 +208,7 @@ export default function AdminDashboardPage() {
       description: '',
       price: '',
       numericPrice: 0,
-      category: 'macbook_m',
+      category: categories[0]?.id || 'macbook_m',
       imageUrl: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80',
       badge: 'Verified',
       batteryHealth: '5Hr +',
@@ -166,7 +225,7 @@ export default function AdminDashboardPage() {
       description: product.description || '',
       price: product.price || String(product.numericPrice || ''),
       numericPrice: product.numericPrice || 0,
-      category: product.category || 'macbook_m',
+      category: product.category || categories[0]?.id || 'macbook_m',
       imageUrl: product.imageUrl || '',
       badge: product.badge || '',
       batteryHealth: product.batteryHealth || '',
@@ -180,10 +239,7 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     try {
       const numericPrice = parseInt(String(formData.price).replace(/\D/g, ''), 10) || formData.numericPrice || 0;
-      const payload = {
-        ...formData,
-        numericPrice,
-      };
+      const payload = { ...formData, numericPrice };
 
       const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
       const method = editingProduct ? 'PUT' : 'POST';
@@ -221,6 +277,76 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatLabel.trim()) return;
+    try {
+      const id = newCatLabel.toLowerCase().trim().replace(/\s+/g, '_');
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, label: newCatLabel.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create category');
+
+      showNotify('success', `Category "${newCatLabel}" created successfully!`);
+      setNewCatLabel('');
+      setIsCategoryModalOpen(false);
+      fetchCategories();
+    } catch (err: unknown) {
+      if (err instanceof Error) showNotify('error', err.message);
+      else showNotify('error', 'Failed to create category');
+    }
+  };
+
+  const handleCreateModerator = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modUsername.trim() || !modPassword.trim()) return;
+    try {
+      const res = await fetch('/api/admin/moderators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register_moderator', username: modUsername.trim(), password: modPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create moderator');
+
+      setCreatedModData({
+        username: modUsername.trim(),
+        secret: data.totpSecret,
+        uri: data.totpUri,
+      });
+
+      // Generate QR Code image url
+      const qrUrl = await QRCode.toDataURL(data.totpUri);
+      setModQrCodeUrl(qrUrl);
+
+      showNotify('success', 'Moderator account created successfully! Set up 2FA.');
+      setModUsername('');
+      setModPassword('');
+      fetchModerators();
+    } catch (err: unknown) {
+      if (err instanceof Error) showNotify('error', err.message);
+      else showNotify('error', 'Failed to create moderator');
+    }
+  };
+
+  const handleDeleteModerator = async (id: number) => {
+    try {
+      const res = await fetch(`/api/admin/moderators?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+
+      showNotify('success', 'Moderator account removed.');
+      setDeletingModId(null);
+      fetchModerators();
+    } catch (err: unknown) {
+      if (err instanceof Error) showNotify('error', err.message);
+      else showNotify('error', 'Failed to remove moderator');
+    }
+  };
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-stone-900 text-stone-300 flex items-center justify-center">
@@ -254,7 +380,9 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <span className="font-serif text-base font-semibold tracking-tight text-white">Apple Studio BD</span>
-              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full ml-2 font-mono">Admin CMS</span>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full ml-2 font-mono">
+                {isAdminRole ? 'Master Admin' : 'Moderator CMS'}
+              </span>
             </div>
           </div>
 
@@ -288,164 +416,256 @@ export default function AdminDashboardPage() {
         {/* Dashboard Title & Actions Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
           <div>
-            <h1 className="text-2xl font-serif font-medium text-white">Inventory Management</h1>
+            <h1 className="text-2xl font-serif font-medium text-white">Admin Command Center</h1>
             <p className="text-xs text-stone-400 font-light mt-1">
-              Manage product price list, stock status, specs, and add new arrivals instantly.
+              Manage inventory, create categories, and secure moderator access with Google Authenticator 2FA.
             </p>
           </div>
-          <button
-            onClick={openAddModal}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold tracking-wide transition shadow-lg shadow-indigo-600/25 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add New Product</span>
-          </button>
-        </div>
-
-        {/* Filters & Search Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          {/* Categories Filter Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {[
-              { id: 'all', label: 'All Products' },
-              { id: 'macbook_m', label: 'M-Series' },
-              { id: 'macbook_intel', label: 'Intel Macs' },
-              { id: 'imac', label: 'iMac' },
-              { id: 'mac_mini', label: 'Mac Mini' },
-              { id: 'ipad', label: 'iPad' },
-              { id: 'accessories', label: 'Accessories' },
-            ].map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoryFilter(cat.id)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl text-xs font-medium transition whitespace-nowrap border cursor-pointer",
-                  categoryFilter === cat.id
-                    ? "bg-white text-stone-950 border-white font-semibold shadow"
-                    : "bg-white/5 text-stone-400 border-white/10 hover:bg-white/10 hover:text-white"
-                )}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Box */}
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products..."
-              className="w-full pl-9 pr-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
-            />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white">
-                <X className="w-3.5 h-3.5" />
-              </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            {isAdminRole && (
+              <>
+                <button
+                  onClick={() => setIsCategoryModalOpen(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold tracking-wide transition border border-stone-700 cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4 text-amber-400" />
+                  <span>New Category</span>
+                </button>
+                <button
+                  onClick={() => setIsModModalOpen(true)}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold tracking-wide transition border border-stone-700 cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4 text-emerald-400" />
+                  <span>New Moderator</span>
+                </button>
+              </>
             )}
+            <button
+              onClick={openAddModal}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold tracking-wide transition shadow-lg shadow-indigo-600/25 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Product</span>
+            </button>
           </div>
         </div>
 
-        {/* Products Table */}
-        <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl">
-          <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between text-xs text-stone-400">
-            <span>Showing <strong className="text-white">{filteredProducts.length}</strong> products</span>
-            <span>Live database synchronized</span>
+        {/* Navigation Tabs */}
+        {isAdminRole && (
+          <div className="flex items-center gap-2 border-b border-stone-800 pb-3">
+            <button
+              onClick={() => setActiveTab('products')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-medium transition cursor-pointer",
+                activeTab === 'products' ? "bg-indigo-600 text-white font-semibold shadow" : "text-stone-400 hover:text-white bg-white/5"
+              )}
+            >
+              Inventory ({products.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('moderators')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-xs font-medium transition cursor-pointer",
+                activeTab === 'moderators' ? "bg-indigo-600 text-white font-semibold shadow" : "text-stone-400 hover:text-white bg-white/5"
+              )}
+            >
+              Moderator Accounts ({moderators.length})
+            </button>
           </div>
+        )}
 
-          {loading ? (
-            <div className="py-20 text-center text-stone-400 text-xs">Loading products...</div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="py-20 text-center space-y-3">
-              <Package className="w-8 h-8 text-stone-600 mx-auto" />
-              <p className="text-xs text-stone-400">No products found.</p>
+        {/* Tab 1: Products */}
+        {activeTab === 'products' && (
+          <div className="space-y-6">
+            {/* Filters & Search Toolbar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  onClick={() => setCategoryFilter('all')}
+                  className={cn(
+                    "px-3.5 py-1.5 rounded-xl text-xs font-medium transition whitespace-nowrap border cursor-pointer",
+                    categoryFilter === 'all'
+                      ? "bg-white text-stone-950 border-white font-semibold shadow"
+                      : "bg-white/5 text-stone-400 border-white/10 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  All ({products.length})
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setCategoryFilter(cat.id)}
+                    className={cn(
+                      "px-3.5 py-1.5 rounded-xl text-xs font-medium transition whitespace-nowrap border cursor-pointer",
+                      categoryFilter === cat.id
+                        ? "bg-white text-stone-950 border-white font-semibold shadow"
+                        : "bg-white/5 text-stone-400 border-white/10 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    {cat.label} ({products.filter(p => p.category === cat.id).length})
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search products..."
+                  className="w-full pl-9 pr-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-stone-100 placeholder:text-stone-500 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 transition"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-white/5 text-stone-400 uppercase font-mono tracking-wider border-b border-white/10">
-                  <tr>
-                    <th className="py-3 px-4">ID</th>
-                    <th className="py-3 px-4">Product</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Price</th>
-                    <th className="py-3 px-4">Badge</th>
-                    <th className="py-3 px-4">Battery</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-white/[0.02] transition group">
-                      <td className="py-3 px-4 font-mono text-stone-500">#{p.id}</td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-stone-800 overflow-hidden relative shrink-0 border border-white/10">
-                            <Image
-                              src={p.imageUrl}
-                              alt={p.name}
-                              fill
-                              sizes="40px"
-                              className="object-contain p-1"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100'; }}
-                            />
-                          </div>
-                          <div>
-                            <p className="font-serif font-medium text-stone-100 max-w-xs truncate">{p.name}</p>
-                            <p className="text-[10px] text-stone-400 truncate max-w-xs">{p.description}</p>
-                          </div>
+
+            {/* Products Table */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl">
+              {loading ? (
+                <div className="py-20 text-center text-stone-400 text-xs">Loading products...</div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="py-20 text-center space-y-3">
+                  <Package className="w-8 h-8 text-stone-600 mx-auto" />
+                  <p className="text-xs text-stone-400">No products found.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-white/5 text-stone-400 uppercase font-mono tracking-wider border-b border-white/10">
+                      <tr>
+                        <th className="py-3 px-4">ID</th>
+                        <th className="py-3 px-4">Product</th>
+                        <th className="py-3 px-4">Category</th>
+                        <th className="py-3 px-4">Price</th>
+                        <th className="py-3 px-4">Badge</th>
+                        <th className="py-3 px-4">Battery</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {filteredProducts.map((p) => (
+                        <tr key={p.id} className="hover:bg-white/[0.02] transition group">
+                          <td className="py-3 px-4 font-mono text-stone-500">#{p.id}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-stone-800 overflow-hidden relative shrink-0 border border-white/10">
+                                <Image
+                                  src={p.imageUrl}
+                                  alt={p.name}
+                                  fill
+                                  sizes="40px"
+                                  className="object-contain p-1"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100'; }}
+                                />
+                              </div>
+                              <div>
+                                <p className="font-serif font-medium text-stone-100 max-w-xs truncate">{p.name}</p>
+                                <p className="text-[10px] text-stone-400 truncate max-w-xs">{p.description}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] text-stone-300 font-mono">
+                              {categories.find(c => c.id === p.category)?.label || p.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-serif font-semibold text-emerald-400">
+                            {p.priceDisplay || `৳ ${p.numericPrice?.toLocaleString()}`}
+                          </td>
+                          <td className="py-3 px-4">
+                            {p.badge ? (
+                              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-semibold">
+                                {p.badge}
+                              </span>
+                            ) : (
+                              <span className="text-stone-500">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-stone-300 font-mono text-[11px]">
+                            {p.batteryHealth || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openEditModal(p)}
+                                className="p-2 rounded-xl bg-white/5 hover:bg-indigo-600/20 text-stone-300 hover:text-indigo-300 border border-white/10 transition cursor-pointer"
+                                title="Edit Product"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setDeletingId(p.id)}
+                                className="p-2 rounded-xl bg-white/5 hover:bg-rose-600/20 text-stone-300 hover:text-rose-300 border border-white/10 transition cursor-pointer"
+                                title="Delete Product"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Moderators */}
+        {activeTab === 'moderators' && isAdminRole && (
+          <div className="space-y-6">
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-serif text-lg font-medium text-white">Active Moderator Accounts</h2>
+                  <p className="text-xs text-stone-400">Moderators log in using their credentials and mandatory Google Authenticator 2FA.</p>
+                </div>
+                <button
+                  onClick={() => setIsModModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Create Moderator</span>
+                </button>
+              </div>
+
+              {moderators.length === 0 ? (
+                <div className="py-12 text-center text-stone-500 text-xs">No moderator accounts created yet.</div>
+              ) : (
+                <div className="divide-y divide-white/5">
+                  {moderators.map(m => (
+                    <div key={m.id} className="py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-bold">
+                          {m.username[0].toUpperCase()}
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] text-stone-300 font-mono">
-                          {p.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 font-serif font-semibold text-emerald-400">
-                        {p.priceDisplay || `৳ ${p.numericPrice?.toLocaleString()}`}
-                      </td>
-                      <td className="py-3 px-4">
-                        {p.badge ? (
-                          <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-semibold">
-                            {p.badge}
-                          </span>
-                        ) : (
-                          <span className="text-stone-500">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-stone-300 font-mono text-[11px]">
-                        {p.batteryHealth || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openEditModal(p)}
-                            className="p-2 rounded-xl bg-white/5 hover:bg-indigo-600/20 text-stone-300 hover:text-indigo-300 border border-white/10 transition cursor-pointer"
-                            title="Edit Product"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setDeletingId(p.id)}
-                            className="p-2 rounded-xl bg-white/5 hover:bg-rose-600/20 text-stone-300 hover:text-rose-300 border border-white/10 transition cursor-pointer"
-                            title="Delete Product"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        <div>
+                          <p className="text-xs font-semibold text-white">{m.username}</p>
+                          <p className="text-[10px] text-stone-500">Created: {new Date(m.createdAt).toLocaleDateString()}</p>
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+                      <button
+                        onClick={() => setDeletingModId(m.id)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-medium border border-rose-500/20 transition cursor-pointer"
+                      >
+                        Revoke Access
+                      </button>
+                    </div>
                   ))}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit Product Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 sm:p-8 space-y-6">
@@ -492,20 +712,26 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
-                    Category *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400">
+                      Category *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="text-[10px] text-indigo-400 hover:underline"
+                    >
+                      + Create Category
+                    </button>
+                  </div>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-2xl bg-stone-900 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
-                    <option value="macbook_m">M-Series (MacBook)</option>
-                    <option value="macbook_intel">Intel Macs</option>
-                    <option value="imac">iMac</option>
-                    <option value="mac_mini">Mac Mini</option>
-                    <option value="ipad">iPad</option>
-                    <option value="accessories">Accessories</option>
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -517,7 +743,6 @@ export default function AdminDashboardPage() {
                 </label>
                 
                 <div className="flex flex-col sm:flex-row gap-3 items-center">
-                  {/* Image Preview Box */}
                   <div className="w-16 h-16 rounded-2xl bg-stone-800 border border-stone-700 relative overflow-hidden shrink-0 flex items-center justify-center">
                     {formData.imageUrl ? (
                       <Image
@@ -534,7 +759,6 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <div className="flex-1 w-full space-y-2">
-                    {/* URL Input */}
                     <input
                       type="text"
                       value={formData.imageUrl}
@@ -544,7 +768,6 @@ export default function AdminDashboardPage() {
                       className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
                     />
 
-                    {/* File Upload Button */}
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
@@ -642,7 +865,148 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Create New Category Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-md p-6 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+              <h3 className="font-serif text-lg font-medium text-white">Create New Category</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-stone-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  value={newCatLabel}
+                  onChange={(e) => setNewCatLabel(e.target.value)}
+                  placeholder="e.g. Apple Watch, Mac Studio"
+                  required
+                  className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 text-stone-300 text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                >
+                  Create Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Moderator Modal */}
+      {isModModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-stone-800">
+              <h3 className="font-serif text-lg font-medium text-white">Create Moderator Account & Setup 2FA</h3>
+              <button onClick={() => { setIsModModalOpen(false); setCreatedModData(null); }} className="text-stone-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {createdModData ? (
+              <div className="space-y-6 text-center">
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs space-y-1">
+                  <p className="font-semibold">Moderator account created successfully!</p>
+                  <p className="text-[11px] text-emerald-400">Scan this QR code in Google Authenticator (or Authy / 1Password)</p>
+                </div>
+
+                {modQrCodeUrl && (
+                  <div className="bg-white p-4 rounded-2xl inline-block shadow-lg mx-auto">
+                    <img src={modQrCodeUrl} alt="2FA QR Code" className="w-48 h-48 mx-auto" />
+                  </div>
+                )}
+
+                <div className="space-y-1 text-left bg-white/5 p-4 rounded-2xl border border-white/10 font-mono text-xs">
+                  <p className="text-stone-400 text-[10px] uppercase">Manual Entry Key:</p>
+                  <p className="text-indigo-300 select-all break-all">{createdModData.secret}</p>
+                </div>
+
+                <button
+                  onClick={() => { setIsModModalOpen(false); setCreatedModData(null); }}
+                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                >
+                  Done • Return to Dashboard
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleCreateModerator} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
+                    Moderator Username *
+                  </label>
+                  <input
+                    type="text"
+                    value={modUsername}
+                    onChange={(e) => setModUsername(e.target.value)}
+                    placeholder="e.g. mahir_mod"
+                    required
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
+                    Temporary Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={modPassword}
+                    onChange={(e) => setModPassword(e.target.value)}
+                    placeholder="Secure password"
+                    required
+                    className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs space-y-1">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                    Mandatory Google Authenticator 2FA
+                  </p>
+                  <p className="text-[11px] text-stone-400">
+                    Upon creation, a QR code will be generated for the moderator to scan into Google Authenticator. Every subsequent login requires a 6-digit TOTP code.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-white/5 text-stone-300 text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
+                  >
+                    Generate Account & 2FA QR
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Product Confirmation */}
       {deletingId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
           <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-md p-6 space-y-6 shadow-2xl text-center">
@@ -667,6 +1031,37 @@ export default function AdminDashboardPage() {
                 className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/25 transition cursor-pointer"
               >
                 Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Moderator Confirmation */}
+      {deletingModId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
+          <div className="bg-stone-900 border border-stone-800 rounded-3xl w-full max-w-md p-6 space-y-6 shadow-2xl text-center">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-serif text-lg font-medium text-white">Revoke Moderator Access?</h3>
+              <p className="text-xs text-stone-400 font-light">
+                This moderator will no longer be able to log in to the admin dashboard.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDeletingModId(null)}
+                className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-stone-300 text-xs font-medium transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteModerator(deletingModId)}
+                className="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/25 transition cursor-pointer"
+              >
+                Revoke Access
               </button>
             </div>
           </div>

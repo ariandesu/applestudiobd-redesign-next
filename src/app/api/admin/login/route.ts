@@ -1,28 +1,80 @@
 import { NextResponse } from 'next/server';
-import { signAdminToken, verifyPassword, COOKIE_NAME } from '@/lib/auth';
+import { signAdminToken, verifyPassword, COOKIE_NAME, initAdminTables, verifyTotpToken, getDbClient } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { username = 'admin', password } = body;
+    const { username = 'admin', password, totpCode } = body;
 
     if (!password) {
       return NextResponse.json({ error: 'Password is required' }, { status: 400 });
     }
 
-    const isValid = await verifyPassword(password);
-    if (!isValid) {
+    await initAdminTables();
+
+    // If master admin
+    if (username === 'admin') {
+      const isValid = await verifyPassword(password);
+      if (!isValid) {
+        return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
+      }
+
+      const token = await signAdminToken({
+        username: 'admin',
+        role: 'admin',
+      });
+
+      const response = NextResponse.json({
+        success: true,
+        user: { username: 'admin', role: 'admin' },
+      });
+
+      response.cookies.set({
+        name: COOKIE_NAME,
+        value: token,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7,
+      });
+
+      return response;
+    }
+
+    // Moderator login with 2FA
+    const db = getDbClient();
+    const modResult = await db.execute({
+      sql: 'SELECT * FROM moderators WHERE username = ?',
+      args: [username],
+    });
+
+    if (modResult.rows.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const mod = modResult.rows[0];
+    if (mod.passwordHash !== password) {
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
     }
 
+    if (!totpCode) {
+      return NextResponse.json({ requires2FA: true }, { status: 200 });
+    }
+
+    const isValidTotp = verifyTotpToken(String(mod.totpSecret), totpCode);
+    if (!isValidTotp) {
+      return NextResponse.json({ error: 'Invalid Google Authenticator 2FA code' }, { status: 401 });
+    }
+
     const token = await signAdminToken({
-      username: username || 'admin',
-      role: 'admin',
+      username: String(mod.username),
+      role: 'moderator',
     });
 
     const response = NextResponse.json({
       success: true,
-      user: { username: username || 'admin' },
+      user: { username: String(mod.username), role: 'moderator' },
     });
 
     response.cookies.set({
@@ -32,7 +84,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return response;
