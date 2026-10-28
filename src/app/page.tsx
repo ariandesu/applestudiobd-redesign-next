@@ -111,8 +111,8 @@ export default function Home() {
         </nav>
 
         {/* Hero */}
-        <section className="relative pt-32 pb-20 px-6">
-          <div className="max-w-4xl mx-auto text-center space-y-6">
+        <section className="relative pt-32 pb-16 px-6">
+          <div className="max-w-5xl mx-auto text-center space-y-6">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -139,6 +139,32 @@ export default function Home() {
               Bangladesh&apos;s most transparent Apple price list. 56+ rigorously inspected, 
               fully certified devices backed by a 2-year service guarantee.
             </motion.p>
+
+            {/* Official Hero Image from Apple Studio BD Facebook */}
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.9, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="relative max-w-4xl mx-auto mt-8 rounded-3xl sm:rounded-[36px] overflow-hidden border border-stone-200/90 shadow-2xl shadow-indigo-500/10 group"
+            >
+              <div className="relative aspect-[16/7] sm:aspect-[21/9] w-full">
+                <Image
+                  src="/hero-banner.jpg"
+                  alt="Apple Studio BD — Trust & Transparency 4 Years Celebration"
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 896px"
+                  className="object-cover object-center group-hover:scale-[1.02] transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/50 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute bottom-3 left-4 sm:bottom-4 sm:left-6 flex items-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-white/90 backdrop-blur-md text-[10px] sm:text-xs font-semibold text-charcoal border border-white/60 shadow-sm flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Verified Dhanmondi Store • Level 3, Shimanto Shambhar
+                  </span>
+                </div>
+              </div>
+            </motion.div>
           </div>
         </section>
 
@@ -556,13 +582,13 @@ function ProductCard({ product }: { product: Product }) {
       className="group bg-white border border-slate-100 rounded-[32px] p-6 transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-2 flex flex-col justify-between"
     >
       <div>
-        <div className="aspect-square rounded-2xl bg-slate-50 overflow-hidden mb-6 relative">
+        <div className="aspect-square rounded-2xl bg-slate-50/80 overflow-hidden mb-6 relative flex items-center justify-center">
           <Image 
             src={product.imageUrl} 
             alt={product.name} 
             fill
             sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 30vw"
-            className="object-contain p-6 group-hover:scale-105 transition-transform duration-700"
+            className="object-contain group-hover:scale-105 transition-transform duration-700"
             onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&auto=format&fit=crop&q=80'; }}
           />
           <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-white/80 backdrop-blur text-[10px] font-bold text-indigo-premium border border-indigo-100">
