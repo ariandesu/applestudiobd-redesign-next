@@ -60,7 +60,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-cream text-charcoal overflow-x-hidden relative">
+    <div className="min-h-screen bg-cream text-charcoal overflow-x-clip relative">
       {/* Light Rays Background */}
       <LightRays
         raysOrigin="top-center"
@@ -127,7 +127,7 @@ export default function Home() {
         </section>
 
         {/* Filters */}
-        <div className="sticky top-[72px] z-40 bg-cream/80 backdrop-blur-md border-b border-slate-100 py-4 px-6">
+        <div className="sticky top-[68px] z-40 bg-cream/80 backdrop-blur-md border-b border-slate-100 py-4 px-6">
           <div className="max-w-7xl mx-auto flex flex-col gap-4">
             <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
               {categories.map(cat => (
@@ -261,9 +261,9 @@ function ProductCard({ product }: { product: Product }) {
         </div>
       </div>
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="font-serif text-xl font-medium">{product.name}</h3>
-          <div className="flex items-center gap-1 text-indigo-premium">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-serif text-xl font-medium min-w-0">{product.name}</h3>
+          <div className="flex items-center gap-1 text-indigo-premium shrink-0 whitespace-nowrap">
             <BatteryMedium className="w-3 h-3" />
             <span className="text-[10px] font-bold">{product.batteryHealth || '85%+'}</span>
           </div>
