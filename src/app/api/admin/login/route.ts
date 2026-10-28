@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { signAdminToken, verifyPassword, COOKIE_NAME, initAdminTables, verifyTotpToken, getDbClient } from '@/lib/auth';
+import { signAdminToken, verifyPassword, COOKIE_NAME, initAdminTables, verifyTotpToken } from '@/lib/auth';
+import { getDbClient } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {

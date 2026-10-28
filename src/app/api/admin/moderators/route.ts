@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDbClient, initAdminTables, generateTotpSecret, verifyTotpToken, signAdminToken, verifyPassword, COOKIE_NAME } from '@/lib/auth';
+import { initAdminTables, generateTotpSecret, verifyTotpToken, signAdminToken, verifyPassword, COOKIE_NAME } from '@/lib/auth';
+import { getDbClient } from '@/lib/db';
 
 export async function GET() {
   try {
