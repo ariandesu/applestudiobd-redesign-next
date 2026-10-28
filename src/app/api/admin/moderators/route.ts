@@ -36,8 +36,8 @@ export async function POST(request: Request) {
 
       try {
         await db.execute({
-          sql: 'INSERT INTO moderators (username, passwordHash, createdAt) VALUES (?, ?, ?)',
-          args: [username.trim(), password, now],
+          sql: 'INSERT INTO moderators (username, passwordHash, totpSecret, createdAt) VALUES (?, ?, ?, ?)',
+          args: [username.trim(), password, 'none', now],
         });
       } catch (err: unknown) {
         if (err instanceof Error && err.message.includes('UNIQUE')) {
