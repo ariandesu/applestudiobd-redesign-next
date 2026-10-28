@@ -7,7 +7,7 @@ export async function GET() {
     await initAdminTables();
     const db = getDbClient();
     const result = await db.execute('SELECT id, username, createdAt FROM moderators ORDER BY id DESC');
-    const moderators = result.rows.map(r => ({
+    const moderators = result.rows.map((r: any) => ({
       id: Number(r.id),
       username: String(r.username),
       createdAt: String(r.createdAt),

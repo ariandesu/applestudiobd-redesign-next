@@ -11,7 +11,7 @@ export async function GET() {
       SELECT * FROM products ORDER BY id ASC
     `);
 
-    const products = result.rows.map(row => ({
+    const products = result.rows.map((row: any) => ({
       id: Number(row.id),
       name: String(row.name),
       description: String(row.description || ''),

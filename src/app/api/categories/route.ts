@@ -6,7 +6,7 @@ export async function GET() {
     await initDb();
     const db = getDbClient();
     const result = await db.execute('SELECT * FROM categories ORDER BY label ASC');
-    const categories = result.rows.map(r => ({
+    const categories = result.rows.map((r: any) => ({
       id: String(r.id),
       label: String(r.label),
     }));
