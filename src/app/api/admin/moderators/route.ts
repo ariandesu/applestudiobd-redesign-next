@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDbClient, initAdminTables } from '@/lib/auth';
+import { initAdminTables } from '@/lib/auth';
+import { getDbClient } from '@/lib/db';
 
 export async function GET() {
   try {
