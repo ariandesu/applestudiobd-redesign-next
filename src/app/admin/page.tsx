@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -11,11 +11,9 @@ import {
   Edit3,
   Trash2,
   X,
-  Check,
-  ShieldCheck,
-  BatteryMedium,
+  Upload,
+  Image as ImageIcon,
   ExternalLink,
-  ChevronRight,
   AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,6 +31,10 @@ export default function AdminDashboardPage() {
   // Modal State for Add / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Uploading state
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -109,6 +111,36 @@ export default function AdminDashboardPage() {
     }
     return list;
   }, [products, categoryFilter, searchQuery]);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showNotify('error', 'Image size must be less than 5MB');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64String = reader.result as string;
+        setFormData(prev => ({ ...prev, imageUrl: base64String }));
+        setUploading(false);
+        showNotify('success', 'Image loaded successfully!');
+      };
+      reader.onerror = () => {
+        setUploading(false);
+        showNotify('error', 'Failed to read image file');
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploading(false);
+      showNotify('error', 'Failed to upload image');
+    }
+  };
 
   const openAddModal = () => {
     setEditingProduct(null);
@@ -478,18 +510,62 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400 mb-1">
-                  Image URL *
+              {/* Image Upload / URL Section */}
+              <div className="space-y-2">
+                <label className="block text-[11px] uppercase tracking-wider font-semibold text-stone-400">
+                  Product Image (Upload File or URL) *
                 </label>
-                <input
-                  type="url"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  placeholder="https://..."
-                  required
-                  className="w-full px-4 py-2.5 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono text-[11px]"
-                />
+                
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                  {/* Image Preview Box */}
+                  <div className="w-16 h-16 rounded-2xl bg-stone-800 border border-stone-700 relative overflow-hidden shrink-0 flex items-center justify-center">
+                    {formData.imageUrl ? (
+                      <Image
+                        src={formData.imageUrl}
+                        alt="Preview"
+                        fill
+                        sizes="64px"
+                        className="object-contain p-1"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=100'; }}
+                      />
+                    ) : (
+                      <ImageIcon className="w-6 h-6 text-stone-500" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    {/* URL Input */}
+                    <input
+                      type="text"
+                      value={formData.imageUrl}
+                      onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                      placeholder="Paste image URL (https://...) or upload below"
+                      required
+                      className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-stone-700 text-stone-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+
+                    {/* File Upload Button */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageFileChange}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-stone-200 text-xs font-medium border border-stone-700 transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>{uploading ? 'Processing Image...' : 'Upload Image File (JPG/PNG)'}</span>
+                      </button>
+                      <span className="text-[10px] text-stone-500">Max 5MB</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
